@@ -118,7 +118,7 @@ RETRY_LOOP:
 	}
 }
 
-const defaultDownloadBufferSize int = 1024
+const defaultDownloadBufferSize int = 8196
 
 //for download prepare info
 type DownloadInfo struct {
@@ -206,6 +206,20 @@ func (engine *HttpEngine) Download(info *DownloadInfo) *DownloadResult {
 	result.url = info.url
 	result.fileFullName = info.filePath+string(os.PathSeparator)+info.fileName
 
+	//open file to write
+	file,e := createFileWriter(info,result.fileFullName)
+	if e != nil {
+		result.e = e
+		return result
+	}
+	//close defer
+	defer func(fullName string) {
+		e := file.Close()
+		if e != nil {
+			logger.Warn("File: "+fullName+" close error: "+e.Error())
+		}
+	}(result.fileFullName)
+
 	engine.sem <- struct{}{} //get sem if full , that will block
 	defer func(){ <- engine.sem}() // function end, sem is returned
 
@@ -221,21 +235,6 @@ func (engine *HttpEngine) Download(info *DownloadInfo) *DownloadResult {
 			request.Header.Set(k,v)
 		}
 	}
-
-	//open file to write
-	file,e := createFileWriter(info,result.fileFullName)
-	if e != nil {
-		result.e = e
-		return result
-	}
-
-	//close defer
-	defer func(fullName string) {
-		e := file.Close()
-		if e != nil {
-			logger.Warn("File: "+fullName+" close error: "+e.Error())
-		}
-	}(result.fileFullName)
 
 	retryCount := 0
 RETRY_LOOP:
@@ -286,7 +285,7 @@ RETRY_LOOP:
 			logger.TraceF("[Download] url:%s -> read %d bytes. Write %d bytes", info.url, n,wn)
 			result.fileSize += int64(wn)
 		}
-		logger.InfoF("[Download] 200 -> %s fileSize: %d", info.url, result.fileSize)
+		logger.InfoF("[Download] 200 -> %s fileSize: %s", info.url, util.GetFormatFileSize(result.fileSize))
 		defer func() {
 			e := response.Body.Close()
 			if e != nil {
