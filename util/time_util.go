@@ -12,11 +12,16 @@ func FuncElapsed(name string) func(){
 	return func() {
 		logger := log.GetLogger()
 		timeStr := fmt.Sprintf("%s elapsed: %v", name, time.Since(now))
-		logger.Trace(timeStr)
+		logger.Info(timeStr)
 	}
 }
 
 //get time second simple method
 func GetTimeSecond(s int) time.Duration{
 	return time.Duration(s) * time.Second
+}
+
+//get time second simple method
+func GetTimeMilliSecond(s int) time.Duration{
+	return time.Duration(s) * time.Millisecond
 }
