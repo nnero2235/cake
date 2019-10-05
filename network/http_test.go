@@ -26,17 +26,17 @@ func TestHttpEngine_Get_Retry(t *testing.T) {
 func TestHttpEngine_Download(t *testing.T) {
 	httpEngine := CreateEngine()
 	info := &DownloadInfo{
-		url:                "https://c-ssl.duitang.com/uploads/item/201412/25/20141225204152_aYEc3.jpeg",
-		filePath:           util.GetOSFilePath("tmp","go","cake_test","image"),
-		fileName:           "1.jpg",
-		httpHeaders:        nil,
-		downloadWhenExists: true,
+		Url:                "https://c-ssl.duitang.com/uploads/item/201412/25/20141225204152_aYEc3.jpeg",
+		FilePath:           util.GetOSFilePath("tmp","go","cake_test","image"),
+		FileName:           "1.jpg",
+		HttpHeaders:        nil,
+		DownloadWhenExists: true,
 	}
 	result := httpEngine.Download(info)
-	if result.e != nil {
-		t.Errorf("%v",result.e)
+	if result.E != nil {
+		t.Errorf("%v",result.E)
 	} else {
-		logger.InfoF("Success: %s -> %d ",result.fileFullName,result.fileSize)
+		logger.InfoF("Success: %s -> %d ",result.FileFullName,result.FileSize)
 	}
 }
 
@@ -46,18 +46,18 @@ func TestHttpEngine_Concurrent_Download(t *testing.T) {
 	for i := 0; i<10 ; i++  {
 		wg.Add(1)
 		info := &DownloadInfo{
-			url:                "https://c-ssl.duitang.com/uploads/item/201412/25/20141225204152_aYEc3.jpeg",
-			filePath:           util.GetOSFilePath("tmp","go","cake_test","image"),
-			fileName:           strconv.Itoa(i)+".jpg",
-			httpHeaders:        nil,
-			downloadWhenExists: true,
+			Url:                "https://c-ssl.duitang.com/uploads/item/201412/25/20141225204152_aYEc3.jpeg",
+			FilePath:           util.GetOSFilePath("tmp","go","cake_test","image"),
+			FileName:           strconv.Itoa(i)+".jpg",
+			HttpHeaders:        nil,
+			DownloadWhenExists: true,
 		}
 		go func(info *DownloadInfo) {
 			result := httpEngine.Download(info)
-			if result.e != nil {
-				t.Errorf("%v",result.e)
+			if result.E != nil {
+				t.Errorf("%v",result.E)
 			} else {
-				logger.InfoF("Success: %s -> %s ",result.fileFullName,util.GetFormatFileSize(result.fileSize))
+				logger.InfoF("Success: %s -> %s ",result.FileFullName,util.GetFormatFileSize(result.FileSize))
 			}
 			wg.Done()
 		}(info)

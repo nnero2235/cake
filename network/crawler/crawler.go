@@ -6,11 +6,17 @@ import (
 	"cake/util/log"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 )
 
 const (
 	UrlChannelSize = 100
+)
+
+const (
+	StatusSuccess = 1
+	StatusFail = 2
 )
 
 var UserAgentList = []string{
@@ -35,7 +41,7 @@ var logger = log.GetLogger()
 //interface of processor: for business obj process result and provide links
 type Processor interface {
 	//process result and return links
-	Process(html string) []string
+	Process(url string,html string) []string
 }
 
 //for url duplicate filter
@@ -46,14 +52,17 @@ type URLFilter interface {
 
 //crawler controller: schedule go route to fetch web page
 type Crawler struct {
-	startLink string //where to start
-	processor Processor //business processor
-	urlFilter URLFilter //business impl url filter
-	httpClient *network.HttpEngine //for fetch url pages
-	shutdown bool //for stop crawler or finished close
-	urlChannel chan string //url queue to fetch
-	timerChannel <- chan time.Time //timer ticker
-	waitTime time.Duration //fetch Interval time
+	startLink           string              //where to start
+	processor           Processor           //business processor
+	urlFilter           URLFilter           //business impl url filter
+	httpClient          *network.HttpEngine //for fetch url pages
+	shutdown            bool                //for stop crawler or finished close
+	urlChannel          chan string         //url queue to fetch
+	resultChannel       chan int            //status of result
+	waitTime            time.Duration       //fetch Interval time
+	CurrentFetchedPages int                 //current fetched pages statistics
+	CurrentFailPages    int                 //current fail pages statistics
+	wg                  *sync.WaitGroup     //wait for shutdown
 }
 
 func randomUserAgent() string {
@@ -87,8 +96,9 @@ func CreateCrawler(processor Processor,filter URLFilter,startLink string) *Crawl
 		httpClient: network.CreateEngine(),
 		shutdown:   false,
 		urlChannel: make(chan string,UrlChannelSize),
-		timerChannel: time.Tick(util.GetTimeSecond(3)),
-		waitTime:    util.GetTimeMilliSecond(500),
+		resultChannel: make(chan int,UrlChannelSize),
+		waitTime:   util.GetTimeMilliSecond(500),
+		wg:         &sync.WaitGroup{},
 	}
 }
 
@@ -100,8 +110,9 @@ func CreateCrawlerByMaxThreads(maxThreads int,processor Processor,filter URLFilt
 		httpClient: network.CreateEngineByParams(maxThreads,network.Timeout,network.Retries),
 		shutdown:   false,
 		urlChannel: make(chan string,UrlChannelSize),
-		timerChannel: time.Tick(util.GetTimeSecond(3)),
+		resultChannel: make(chan int,UrlChannelSize),
 		waitTime:    util.GetTimeMilliSecond(500),
+		wg:         &sync.WaitGroup{},
 	}
 }
 
@@ -117,7 +128,6 @@ func (c *Crawler) Start() {
 	//statistic time cost
 	defer util.FuncElapsed("Crawler Start")()
 
-	activeTime := time.Now()
 	//add first url
 	c.urlChannel <- c.startLink
 	//fetch loop
@@ -128,37 +138,43 @@ func (c *Crawler) Start() {
 				c.shutdown = true
 				continue
 			}
-			activeTime = time.Now()
 			if !c.urlFilter.CheckDuplicate(url) {
+				c.wg.Add(1)
 				go c.fetch(url) //concurrent fetch
 			} else {
 				logger.TraceF("url: %s duplicate. Skip!",url)
 			}
-		case <- c.timerChannel:
-			idleTime := time.Since(activeTime)
-			if idleTime >= util.GetTimeSecond(15) { //should shutdown
-				logger.InfoF("Idle Time: %v  over time. Shutdown!",idleTime)
-				close(c.urlChannel)
+		case status := <- c.resultChannel:
+			if status == StatusSuccess {
+				c.CurrentFetchedPages += 1
+			} else {
+				c.CurrentFailPages += 1
 			}
+		case <- time.After(util.GetTimeSecond(15)): //timeout for select: we determine this for shutdown
+			close(c.urlChannel)
 		}
 	}
-	logger.Info("Crawler Finished.")
+	c.wg.Wait() //wait for all go route done
+	logger.Info("Crawler Shutdown.")
 }
 
 
 func (c *Crawler) fetch(url string) {
+	defer c.wg.Done()
 	headerMap := make(map[string]string)
 	headerMap["UserAgent"] = randomUserAgent()
 	html, e := c.httpClient.Get(url, headerMap)
 	if e != nil {
 		logger.ErrorF("%v",e)
+		c.resultChannel <- StatusFail
 		return
 	}
 	//process result
-	links := c.processor.Process(html)
+	links := c.processor.Process(url,html)
 	//send link to fetch
 	for _,link := range links {
 		c.urlChannel <- link
 	}
 	time.Sleep(c.waitTime)
+	c.resultChannel <- StatusSuccess
 }

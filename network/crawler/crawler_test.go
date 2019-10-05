@@ -10,7 +10,6 @@ import (
 type cnblogs struct {
 	startLink string
 	urlPool *datastruct.HashSet
-	totalPages int
 }
 
 func NewCNBlogs() *cnblogs {
@@ -20,8 +19,7 @@ func NewCNBlogs() *cnblogs {
 	}
 }
 
-func (w *cnblogs) Process(html string) []string {
-	w.totalPages += 1
+func (w *cnblogs) Process(url string,html string) []string {
 	reader := bytes.NewReader([]byte(html))
 	doc, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
@@ -52,5 +50,4 @@ func TestCrawler_Start(t *testing.T) {
 	cb := NewCNBlogs()
 	c := CreateCrawler(cb,cb,cb.startLink)
 	c.Start()
-	logger.InfoF("Total fetch pages: %d ",cb.totalPages)
 }
