@@ -172,18 +172,18 @@ func createFileWriter(info *DownloadInfo,fileFullName string) (*os.File,error) {
 		return file,nil
 	} else {
 		file, e := os.OpenFile(fileFullName,os.O_RDONLY,util.FileRWRAll)
-		if os.IsExist(e){
-			e = file.Close()
+		if os.IsNotExist(e){
+			file, e = os.OpenFile(fileFullName,os.O_CREATE|os.O_WRONLY,util.FileRWRAll)
 			if e != nil{
-				logger.Warn("File: "+fileFullName+" close error: "+e.Error())
+				return nil,fmt.Errorf("Create File: "+fileFullName+" failed! Error: %v",e)
 			}
-			return nil,fmt.Errorf("File: %s already exists. skip download",fileFullName)
+			return file,nil
 		}
-		file, e = os.OpenFile(fileFullName,os.O_CREATE|os.O_WRONLY,util.FileRWRAll)
+		e = file.Close()
 		if e != nil{
-			return nil,fmt.Errorf("Create File: "+fileFullName+" failed! Error: %v",e)
+			logger.Warn("File: "+fileFullName+" close error: "+e.Error())
 		}
-		return file,nil
+		return nil,fmt.Errorf("File: %s already exists. skip download",fileFullName)
 	}
 }
 
