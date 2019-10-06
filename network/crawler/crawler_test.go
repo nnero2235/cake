@@ -19,7 +19,7 @@ func NewCNBlogs() *cnblogs {
 	}
 }
 
-func (w *cnblogs) Process(url string,html string) []string {
+func (w *cnblogs) Process(link *Link,html string) []*Link {
 	reader := bytes.NewReader([]byte(html))
 	doc, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
@@ -31,11 +31,14 @@ func (w *cnblogs) Process(url string,html string) []string {
 		view := s.Find("span.article_view").Text()
 		logger.InfoF("Title: %s -> \"%s\"",title,view)
 	})
-	var links []string
+	var links []*Link
 	doc.Find("div#main div#pager_bottom div.pager a").Each(func(i int, s *goquery.Selection) {
 		link, exists := s.Attr("href")
 		if exists {
-			links = append(links,"https://www.cnblogs.com"+link)
+			links = append(links,&Link{
+				Url:     "https://www.cnblogs.com"+link,
+				AttrMap: nil,
+			})
 		}
 	})
 	return links
